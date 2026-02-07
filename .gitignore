@@ -6,3 +6,6 @@ out
 *.log*
 .env
 .env.*
+push_log.txt
+release_log.txt
+release_pid.txt
