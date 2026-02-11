@@ -1,0 +1,56 @@
+
+> mymma-app@1.0.1 release:win
+> npm run build && electron-builder --win --publish always
+
+
+> mymma-app@1.0.1 build
+> npm run typecheck && electron-vite build
+
+
+> mymma-app@1.0.1 typecheck
+> npm run typecheck:node && npm run typecheck:web
+
+
+> mymma-app@1.0.1 typecheck:node
+> tsc --noEmit -p tsconfig.node.json --composite false
+
+
+> mymma-app@1.0.1 typecheck:web
+> tsc --noEmit -p tsconfig.web.json --composite false
+
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+out/main/index.js  10.20 kB
+✓ built in 128ms
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.js  5.10 kB
+✓ built in 21ms
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 1709 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                   0.55 kB
+../../out/renderer/assets/index-BkNHwG4Z.css    0.32 kB
+../../out/renderer/assets/index-B4_Hlaeg.js   591.90 kB
+✓ built in 2.13s
+  • electron-builder  version=26.7.0 os=6.12.68-1-lts
+  • loaded configuration  file=/home/alfian/srv/http/mmaxup_electron/electron-builder.yml
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=win32 arch=x64 electron=39.5.1 appOutDir=dist/win-unpacked
+  • searching for node modules  pm=npm searchDir=/home/alfian/srv/http/mmaxup_electron
+  • updating asar integrity executable resource  executablePath=dist/win-unpacked/mymma-app.exe
+  • signing with signtool.exe  path=dist/win-unpacked/mymma-app.exe
+  • building        target=nsis file=dist/MyMMA App-1.0.1-setup.exe archs=x64 oneClick=true perMachine=false
+  • signing with signtool.exe  path=dist/win-unpacked/resources/elevate.exe
+  • signing with signtool.exe  path=dist/MyMMA App-1.0.1-setup.__uninstaller.exe
+  • signing with signtool.exe  path=dist/MyMMA App-1.0.1-setup.exe
+  • building block map  blockMapFile=dist/MyMMA App-1.0.1-setup.exe.blockmap
+  • publishing      publisher=Github (owner: ptmma-dev, project: MyMMA-Desktop, version: 1.0.1)
+  • uploading       file=MyMMA-App-1.0.1-setup.exe.blockmap provider=github
+  • uploading       file=MyMMA-App-1.0.1-setup.exe provider=github
+  • creating GitHub release  reason=release doesn't exist tag=v1.0.1 version=1.0.1

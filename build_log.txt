@@ -1,0 +1,36 @@
+
+> mymma-app@1.0.0 build
+> npm run typecheck && electron-vite build
+
+
+> mymma-app@1.0.0 typecheck
+> npm run typecheck:node && npm run typecheck:web
+
+
+> mymma-app@1.0.0 typecheck:node
+> tsc --noEmit -p tsconfig.node.json --composite false
+
+
+> mymma-app@1.0.0 typecheck:web
+> tsc --noEmit -p tsconfig.web.json --composite false
+
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+out/main/index.js  10.20 kB
+✓ built in 207ms
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.js  5.81 kB
+✓ built in 46ms
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 1709 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                   0.55 kB
+../../out/renderer/assets/index-BkNHwG4Z.css    0.32 kB
+../../out/renderer/assets/index-B4XvXgej.js   592.81 kB
+✓ built in 4.99s

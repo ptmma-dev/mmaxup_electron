@@ -1,0 +1,65 @@
+
+> mymma-app@1.0.4 release:all
+> npm run build && electron-builder --win --linux --publish always
+
+
+> mymma-app@1.0.4 build
+> npm run typecheck && electron-vite build
+
+
+> mymma-app@1.0.4 typecheck
+> npm run typecheck:node && npm run typecheck:web
+
+
+> mymma-app@1.0.4 typecheck:node
+> tsc --noEmit -p tsconfig.node.json --composite false
+
+
+> mymma-app@1.0.4 typecheck:web
+> tsc --noEmit -p tsconfig.web.json --composite false
+
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 2 modules transformed.
+rendering chunks...
+out/main/index.js  15.96 kB
+✓ built in 95ms
+vite v7.3.1 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.js  12.82 kB
+✓ built in 33ms
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 1711 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                   0.55 kB
+../../out/renderer/assets/index-BkNHwG4Z.css    0.32 kB
+../../out/renderer/assets/index-XlEKX1fr.js   636.39 kB
+✓ built in 1.85s
+  • electron-builder  version=26.7.0 os=6.12.69-1-lts
+  • loaded configuration  file=/home/alfian/srv/http/mmaxup_electron/electron-builder.yml
+  ⨯ Invalid configuration object. electron-builder 26.7.0 has been initialized using a configuration object that does not match the API schema.
+ - configuration.linux.desktop has an unknown property 'StartupWMClass'. These properties are valid:
+   object { desktopActions?, entry? }
+   -> Example Spec: https://specifications.freedesktop.org/desktop-entry-spec/latest/example.html
+     How to fix:
+     1. Open https://www.electron.build/linux
+     2. Search the option name on the page (or type in into Search to find across the docs).
+       * Not found? The option was deprecated or not exists (check spelling).
+       * Found? Check that the option in the appropriate place. e.g. "title" only in the "dmg", not in the root.
+  failedTask=build stackTrace=ValidationError: Invalid configuration object. electron-builder 26.7.0 has been initialized using a configuration object that does not match the API schema.
+ - configuration.linux.desktop has an unknown property 'StartupWMClass'. These properties are valid:
+   object { desktopActions?, entry? }
+   -> Example Spec: https://specifications.freedesktop.org/desktop-entry-spec/latest/example.html
+     How to fix:
+     1. Open https://www.electron.build/linux
+     2. Search the option name on the page (or type in into Search to find across the docs).
+       * Not found? The option was deprecated or not exists (check spelling).
+       * Found? Check that the option in the appropriate place. e.g. "title" only in the "dmg", not in the root.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                at validate (/home/alfian/srv/http/mmaxup_electron/node_modules/@develar/schema-utils/dist/validate.js:86:11)
+    at validateConfiguration (/home/alfian/srv/http/mmaxup_electron/node_modules/app-builder-lib/src/util/config/config.ts:239:3)
+    at Packager.validateConfig (/home/alfian/srv/http/mmaxup_electron/node_modules/app-builder-lib/src/packager.ts:398:5)
+    at Packager.build (/home/alfian/srv/http/mmaxup_electron/node_modules/app-builder-lib/src/packager.ts:406:5)
+    at executeFinally (/home/alfian/srv/http/mmaxup_electron/node_modules/builder-util/src/promise.ts:12:14)

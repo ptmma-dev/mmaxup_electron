@@ -1,0 +1,12 @@
+version: 1.0.2
+files:
+  - url: mymma-app-1.0.2.AppImage
+    sha512: RZhgQ9ixQfAlpdBjf4az7ax+DlU/qB0PD3DU602+hvDQexDoEuQ/5ZTR20wByFPZGaSmIwLkb200CQsK0emicA==
+    size: 118407639
+    blockMapSize: 123371
+  - url: mymma-app_1.0.2_amd64.deb
+    sha512: 4P+fGXAmc9orv7BVf564PMmjDSYlWng1QfDqZ+fvvdj4LH1WWgLhqjKMiCcYu1kR3wCRKKi6dY/xlq+x6AgNtg==
+    size: 92800520
+path: mymma-app-1.0.2.AppImage
+sha512: RZhgQ9ixQfAlpdBjf4az7ax+DlU/qB0PD3DU602+hvDQexDoEuQ/5ZTR20wByFPZGaSmIwLkb200CQsK0emicA==
+releaseDate: '2026-02-07T11:16:49.778Z'

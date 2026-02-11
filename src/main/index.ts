@@ -1,24 +1,60 @@
-import { app, shell, BrowserWindow, ipcMain, Notification, session, Tray, Menu } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  Notification,
+  session,
+  Tray,
+  Menu,
+  nativeTheme,
+  safeStorage,
+  nativeImage
+} from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { logInfo, logError } from './logger'
+// Import icon for asset tracking
+import iconAsset from '../../resources/icon.png?asset'
 
-// Debug: Log icon path
-console.log('[Icon] Using icon path:', icon)
-console.log('[Icon] Absolute path:', join(__dirname, '../../resources/icon.png'))
+// Determine absolute icon path for robustness (especially for Linux taskbar)
+const iconPath = join(__dirname, '../../assets/icons/icon.png')
+const icon = nativeImage.createFromPath(iconPath)
 
-// Extend App type to include custom property via type casting where used
-// since multiple definitions can conflict in some TS configurations
+// Detailed logging for icon loading
+logInfo(`Icon asset import path: ${iconAsset}`)
+logInfo(`Icon absolute path: ${iconPath}`)
+logInfo(`Icon file exists: ${existsSync(iconPath)}`)
+logInfo(`NativeImage created. Empty? ${icon.isEmpty()}`)
+if (!icon.isEmpty()) {
+  const size = icon.getSize()
+  logInfo(`Icon dimensions: ${size.width}x${size.height}`)
+} else {
+  logError('Application icon is EMPTY. Taskbar/Window icon may not appear.')
+}
+
+// Set app identity early for OS recognition (especially Linux/Wayland/Hyprland)
+// Use the slug-case name to match the executable and desktop file name
+// for better window manager association.
+logInfo(`Setting app name to: mymma-app`)
+app.name = 'mymma-app'
+app.setAppUserModelId('com.mymma.app')
+
+if (process.platform === 'linux') {
+  // Helps Wayland compositors find the .desktop file
+  // Using the base name (slug) is often more reliable than the full desktop filename.
+  ; (app as any).setDesktopName('mymma-app')
+}
 
 const gotTheLock = app.requestSingleInstanceLock()
 
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+  app.on('second-instance', (_event, commandLine) => {
     // Someone tried to run a second instance, we should focus our window.
     const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
     if (mainWindow) {
@@ -27,8 +63,24 @@ if (!gotTheLock) {
       }
       mainWindow.show()
       mainWindow.focus()
+
+      // Protocol handler for Windows/Linux
+      const url = commandLine.pop()
+      if (url && url.startsWith('mmaxup://')) {
+        console.log('[Protocol] Deep link received via second-instance:', url)
+        mainWindow.webContents.send('protocol-link', url)
+      }
     }
   })
+}
+
+// Register protocol client
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('mmaxup', process.execPath, [join(__dirname, '../../')])
+  }
+} else {
+  app.setAsDefaultProtocolClient('mmaxup')
 }
 
 let tray: Tray | null = null
@@ -42,7 +94,9 @@ function createWindow(): void {
     autoHideMenuBar: true,
     frame: false,
     titleBarStyle: 'hidden',
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
+    // @ts-ignore: wmClass is specific to Linux/X11
+    wmClass: 'mymma-app',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -63,6 +117,130 @@ function createWindow(): void {
 
   // Handle request for preload path
   ipcMain.handle('get-preload-path', () => preloadPath)
+
+  // Secure Credential Storage IPC
+  const credentialsPath = join(app.getPath('userData'), 'credentials.json')
+
+  // Helper to check encryption availability
+  const isEncryptionAvailable = () => {
+    return process.platform !== 'linux' || safeStorage.isEncryptionAvailable()
+  }
+
+  ipcMain.handle('credentials:get', async (_event) => {
+    if (!existsSync(credentialsPath)) {
+      return []
+    }
+    try {
+      const data = JSON.parse(readFileSync(credentialsPath, 'utf8'))
+      const allCreds: any[] = []
+
+      // Flatten structure for UI: { id, domain, username, password }
+      Object.keys(data).forEach((domain) => {
+        data[domain].forEach((cred: any) => {
+          try {
+            const unlockedPassword =
+              isEncryptionAvailable() && cred.encrypted
+                ? safeStorage.decryptString(Buffer.from(cred.password, 'base64'))
+                : cred.password
+
+            allCreds.push({
+              id: `${domain}-${cred.username}`,
+              domain,
+              username: cred.username,
+              password: unlockedPassword
+            })
+          } catch (err) {
+            console.error(`[Credentials] Failed to decrypt for ${domain}/${cred.username}`, err)
+          }
+        })
+      })
+
+      return allCreds
+    } catch (err) {
+      console.error('[Credentials] Error reading credentials:', err)
+      return []
+    }
+  })
+
+  ipcMain.handle('credentials:save', async (_event, { domain, username, password }) => {
+    let data: any = {}
+    if (existsSync(credentialsPath)) {
+      try {
+        data = JSON.parse(readFileSync(credentialsPath, 'utf8'))
+      } catch (err) {
+        console.error('[Credentials] Error parsing existing credentials:', err)
+      }
+    }
+
+    if (!data[domain]) {
+      data[domain] = []
+    }
+
+    // Encrypt password if possible
+    const canEncrypt = isEncryptionAvailable()
+    const finalPassword = canEncrypt
+      ? safeStorage.encryptString(password).toString('base64')
+      : password
+
+    // Check if account already exists
+    const index = data[domain].findIndex((c: any) => c.username === username)
+    if (index !== -1) {
+      data[domain][index].password = finalPassword
+      data[domain][index].encrypted = canEncrypt
+    } else {
+      data[domain].push({ username, password: finalPassword, encrypted: canEncrypt })
+    }
+
+    try {
+      writeFileSync(credentialsPath, JSON.stringify(data, null, 2))
+      return { success: true }
+    } catch (err) {
+      console.error('[Credentials] Error saving credentials:', err)
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
+  // File System Operations
+  ipcMain.handle('shell:open-file', async (_event, { path }) => {
+    if (!path) return { success: false, error: 'No path provided' }
+    try {
+      const result = await shell.openPath(path)
+      return { success: !result, error: result }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle('shell:show-in-folder', async (_event, { path }) => {
+    if (!path) return { success: false, error: 'No path provided' }
+    try {
+      shell.showItemInFolder(path)
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle('credentials:delete', async (_event, { domain, username }) => {
+    if (!existsSync(credentialsPath)) {
+      return { success: false }
+    }
+    try {
+      const data = JSON.parse(readFileSync(credentialsPath, 'utf8'))
+      if (data[domain]) {
+        data[domain] = data[domain].filter((c: any) => c.username !== username)
+        if (data[domain].length === 0) {
+          delete data[domain]
+        }
+        writeFileSync(credentialsPath, JSON.stringify(data, null, 2))
+        return { success: true }
+      }
+      return { success: false }
+    } catch (err) {
+      console.error('[Credentials] Error deleting credentials:', err)
+      return { success: false, error: (err as Error).message }
+    }
+  })
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
@@ -104,15 +282,15 @@ function createWindow(): void {
     // Determine the best icon
     let finalIcon = options?.icon
 
-    // If it's a generic favicon or missing, use the high-res app icon
-    if (!finalIcon || finalIcon.includes('favicon') || finalIcon.includes('logo.svg')) {
-      finalIcon = icon
+    // Use main app icon logic if specific icon not provided or if we want to enforce consistency
+    // In this case, we default to the main app icon if no specific icon is provided,
+    // or if the logic previously forced a notification icon.
+    if (!finalIcon) {
+      finalIcon = iconPath
     }
 
-    console.log(`[IPC] trigger-native-notification for "${title}"`, {
-      body: options?.body,
-      iconUsed: finalIcon
-    })
+    console.log(`[Notification] Platform: ${process.platform}`)
+    console.log(`[Notification] Final Icon Path: ${finalIcon}`)
 
     if (!Notification.isSupported()) {
       console.error('[Notification] Native notifications are NOT supported on this system')
@@ -120,12 +298,54 @@ function createWindow(): void {
     }
 
     try {
-      const notification = new Notification({
+      const notificationParams: any = {
         title,
         body: options?.body,
-        icon: finalIcon,
         silent: options?.silent
-      })
+      }
+
+      // Load icon as nativeImage
+      let iconImage: any = null
+      if (finalIcon) {
+        // Try loading from absolute path if available, or fallback
+        // Since we are now using the main icon mostly, it's simpler.
+        // If finalIcon is the imported 'icon' string (path), we can try to use it.
+
+        // Check if it's the imported asset path (which might be a transformed path in dev)
+        // or a file path.
+        if (typeof finalIcon === 'string') {
+          iconImage = nativeImage.createFromPath(finalIcon.replace('file://', ''))
+        }
+
+        if (iconImage && !iconImage.isEmpty()) {
+          console.log('[Notification] User provided icon loaded successfully')
+        } else {
+          // Fallback to main resources icon if needed
+          const absoluteIconPath = join(__dirname, '../../resources/icon.png')
+          iconImage = nativeImage.createFromPath(absoluteIconPath)
+        }
+      }
+
+      // On Linux, providing the app icon explicitly often results in stacking/redundancy
+      // if the identity is not perfectly matched.
+      if (process.platform === 'linux') {
+        // Only provide icon if it's NOT the main app icon to allow clean badging
+        // But since we removed the separate notification icon, we likely want to verify behavior.
+        // If we want the main icon, we often DON'T pass it explicitly if app.desktopName / app.name matches.
+
+        // However, if we want to ensure the rounded icon is used (and not a generic system one),
+        // we might still want to pass it if the system isn't picking it up automatically.
+        // For now, let's pass it if it's explicitly loaded, to ensure our new rounded look is used.
+        if (iconImage && !iconImage.isEmpty()) {
+          notificationParams.icon = iconImage
+        }
+      } else {
+        if (iconImage && !iconImage.isEmpty()) {
+          notificationParams.icon = iconImage
+        }
+      }
+
+      const notification = new Notification(notificationParams)
 
       notification.on('show', () => console.log(`[Notification] "${title}" is now visible`))
       notification.on('click', () => {
@@ -147,9 +367,6 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  // Use the same icon imported at the top
-  console.log('[Tray] Creating system tray with icon:', icon)
-
   // Create tray icon
   tray = new Tray(icon)
 
@@ -202,10 +419,10 @@ function createTray(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows/linux notifications
-  app.setAppUserModelId('com.mymma.app')
+  // app.setAppUserModelId('com.mymma.app') // Moved to top-level
 
   // Set app name explicitly
-  app.name = 'MyMMA App'
+  // app.name = 'MyMMA App' // Moved to top-level
 
   // Set default window icon behavior for Linux
   if (process.platform === 'linux') {
@@ -213,6 +430,16 @@ app.whenReady().then(() => {
   }
 
   console.log(`[System Check] Notifications Supported: ${Notification.isSupported()}`)
+  console.log(
+    `[System Check] Theme: shouldUseDarkColors=${nativeTheme.shouldUseDarkColors}, themeSource=${nativeTheme.themeSource}`
+  )
+
+  nativeTheme.on('updated', () => {
+    console.log(
+      '[System Check] nativeTheme updated! shouldUseDarkColors:',
+      nativeTheme.shouldUseDarkColors
+    )
+  })
 
   // Enforce permissions globally for the default session
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -220,7 +447,11 @@ app.whenReady().then(() => {
     console.log(`[Permission Request] ${permission} for ${url}`)
 
     // Auto-grant for sub-apps or specifically for notifications
-    if (url.includes('reytechz.my.id') || url.includes('mmaxup.com') || permission === 'notifications') {
+    if (
+      url.includes('reytechz.my.id') ||
+      url.includes('mmaxup.com') ||
+      permission === 'notifications'
+    ) {
       console.log(`[Permission Granted] ${permission}`)
       return callback(true)
     }
@@ -344,7 +575,7 @@ app.on('window-all-closed', () => {
 
 // Set flag when app is quitting
 app.on('before-quit', () => {
-  (app as any).isQuitting = true
+  ; (app as any).isQuitting = true
   console.log('[App] App is quitting')
 })
 
@@ -352,6 +583,8 @@ app.on('before-quit', () => {
 // code. You can also put them in separate files and require them here.
 
 function checkForUpdates(): void {
+  console.log('[Update] Initializing check. Current version:', app.getVersion())
+
   // Check for updates
   autoUpdater.checkForUpdatesAndNotify()
 
@@ -360,11 +593,11 @@ function checkForUpdates(): void {
   })
 
   autoUpdater.on('update-available', (info) => {
-    console.log('[Update] Update available:', info.version)
+    console.log('[Update] Update available:', info.version, 'Release date:', info.releaseDate)
   })
 
   autoUpdater.on('update-not-available', (info) => {
-    console.log('[Update] Update not available:', info.version)
+    console.log('[Update] Update not available. Current version is latest:', info.version)
   })
 
   autoUpdater.on('error', (err) => {
@@ -373,7 +606,7 @@ function checkForUpdates(): void {
 
   autoUpdater.on('download-progress', (progressObj) => {
     let log_message = 'Download speed: ' + progressObj.bytesPerSecond
-    log_message = log_message + ' - Downloaded ' + progressObj.percent + '%'
+    log_message = log_message + ' - Downloaded ' + Math.floor(progressObj.percent) + '%'
     log_message = log_message + ' (' + progressObj.transferred + '/' + progressObj.total + ')'
     console.log('[Update] ' + log_message)
   })
@@ -388,6 +621,7 @@ function checkForUpdates(): void {
     })
 
     notification.on('click', () => {
+      console.log('[Update] Update notification clicked. Quitting and installing...')
       autoUpdater.quitAndInstall()
     })
 
