@@ -1,0 +1,35 @@
+name: Build and Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger build saat push tag v1.4.x
+
+jobs:
+  build_and_release:
+    name: Build and Release (Win & Linux)
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Sesuaikan dengan versi Node Anda
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build and Publish
+        # Menggunakan electron-builder untuk mem-build dan mengunggah ke GitHub
+        run: npm run build && npx electron-builder --publish always
+        env:
+          # Pastikan Anda telah menambahkan RELEASE_TOKEN di GitHub Secrets repo private ini
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}

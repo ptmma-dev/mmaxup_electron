@@ -46,7 +46,7 @@ appImage:
 npmRebuild: false
 publish:
   provider: github
-  owner: ptmma-dev
-  repo: MyMMA-Desktop
+  owner: almerhal76
+  repo: mymma-desktop
   vPrefixedTagName: true
   releaseType: release
