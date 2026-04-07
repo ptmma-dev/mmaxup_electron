@@ -12,7 +12,8 @@ import {
   Download as DownloadIcon,
   X,
   AlertCircle,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react'
 
 interface DownloadItem {
@@ -27,8 +28,9 @@ interface DownloadItem {
 }
 
 interface DownloadManagerProps {
-  show?: boolean
+  visible?: boolean
   onClose?: () => void
+  theme?: 'light' | 'dark'
 }
 
 const getFileIcon = (fileName: string) => {
@@ -83,15 +85,33 @@ const getFileIcon = (fileName: string) => {
   }
 }
 
-const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
+const DownloadManager: React.FC<DownloadManagerProps> = ({ visible, onClose, theme = 'dark' }) => {
   const [downloads, setDownloads] = useState<{ [key: string]: DownloadItem }>({})
   const [internalShow, setInternalShow] = useState(false)
+  const [deletingItem, setDeletingItem] = useState<DownloadItem | null>(null)
+  const isLight = theme === 'light'
 
-  // Visibility logic: controlled by parent 'show' or internally when download starts
-  const isVisible = show !== undefined ? show : internalShow
+  // Visibility logic: controlled by parent 'visible' or internally when download starts
+  const isVisible = visible !== undefined ? visible : internalShow
   const handleClose = onClose || (() => setInternalShow(false))
 
+  const loadHistory = async () => {
+    // @ts-ignore
+    if (window.myMMA && window.myMMA.getDownloadHistory) {
+      // @ts-ignore
+      const history = await window.myMMA.getDownloadHistory()
+      if (history && history.length > 0) {
+        const historyMap = history.reduce((acc: any, item: DownloadItem) => {
+          acc[item.id] = { ...item, status: 'completed' }
+          return acc
+        }, {})
+        setDownloads(historyMap)
+      }
+    }
+  }
+
   useEffect(() => {
+    loadHistory()
     // @ts-ignore
     if (window.myMMA) {
       // @ts-ignore
@@ -167,38 +187,46 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
   // Only return null if not visible AND no active downloads to show the toggle handle
   if (!isVisible && downloadList.length === 0) return null
 
+  const removeHistoryItem = async (id: string, deleteFile: boolean = false) => {
+    console.log(`[DownloadManager] Removing history item: id=${id}, deleteFile=${deleteFile}`)
+    // @ts-ignore
+    if (window.myMMA && window.myMMA.removeDownloadHistory) {
+      // @ts-ignore
+      const result = await window.myMMA.removeDownloadHistory(id, deleteFile)
+      console.log(`[DownloadManager] Removal result:`, result)
+      setDownloads((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      setDeletingItem(null)
+    }
+  }
+
   return (
     <div
       style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '25px',
-        zIndex: 1000,
-        width: '320px',
-        maxHeight: '400px',
-        backgroundColor: 'oklch(0.18 0 0 / 0.95)',
+        height: '100%',
+        width: '100%',
+        backgroundColor: isLight ? 'rgba(255, 255, 255, 0.95)' : 'oklch(0.18 0 0 / 0.95)',
         backdropFilter: 'blur(30px)',
-        borderRadius: '20px',
-        border: '1px solid oklch(1 0 0 / 0.1)',
-        boxShadow: '0 20px 50px oklch(0 0 0 / 0.6)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
-        transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-        transform: isVisible ? 'translateY(0)' : 'translateY(calc(100% + 40px))',
-        visibility:
-          isVisible || downloadList.some((d) => d.status === 'downloading') ? 'visible' : 'hidden'
+        transition: 'all 0.5s ease'
       }}
     >
       {/* Header */}
       <div
         style={{
           padding: '16px 20px',
-          borderBottom: '1px solid oklch(1 0 0 / 0.05)',
+          borderBottom: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.05)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'linear-gradient(to right, oklch(0.588 0.158 241.97 / 0.1), transparent)'
+          background: isLight
+            ? 'linear-gradient(to right, rgba(0,0,0,0.02), transparent)'
+            : 'linear-gradient(to right, oklch(0.588 0.158 241.97 / 0.1), transparent)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -217,7 +245,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
           />
           <span
             style={{
-              color: 'white',
+              color: isLight ? 'black' : 'white',
               fontWeight: '800',
               fontSize: '11px',
               letterSpacing: '0.1em',
@@ -230,9 +258,9 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
         <button
           onClick={handleClose}
           style={{
-            background: 'oklch(1 0 0 / 0.05)',
+            background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
             border: 'none',
-            color: 'oklch(1 0 0 / 0.6)',
+            color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)',
             cursor: 'pointer',
             padding: '6px',
             borderRadius: '8px',
@@ -264,8 +292,8 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
               alignItems: 'center',
               justifyContent: 'center',
               padding: '40px 20px',
-              opacity: 0.3,
-              color: 'white',
+              opacity: 0.4,
+              color: isLight ? 'black' : 'white',
               textAlign: 'center'
             }}
           >
@@ -288,8 +316,8 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
               style={{
                 padding: '14px',
                 borderRadius: '16px',
-                backgroundColor: 'oklch(1 0 0 / 0.04)',
-                border: '1px solid oklch(1 0 0 / 0.05)',
+                backgroundColor: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.04)',
+                border: isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.05)',
                 transition: 'all 0.3s ease',
                 cursor: item.status === 'completed' ? 'pointer' : 'default',
                 position: 'relative', // For hover effect
@@ -298,11 +326,11 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
               }}
               onMouseEnter={(e) => {
                 if (item.status === 'completed') {
-                  e.currentTarget.style.backgroundColor = 'oklch(1 0 0 / 0.08)'
+                  e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)'
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'oklch(1 0 0 / 0.04)'
+                e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.04)'
               }}
             >
               {/* File Icon */}
@@ -311,7 +339,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
                   width: '40px',
                   height: '40px',
                   borderRadius: '10px',
-                  backgroundColor: 'oklch(1 0 0 / 0.05)',
+                  backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -332,7 +360,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
                 >
                   <div
                     style={{
-                      color: 'white',
+                      color: isLight ? 'black' : 'white',
                       fontSize: '12px',
                       fontWeight: '600',
                       whiteSpace: 'nowrap',
@@ -348,7 +376,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
                     style={{
                       fontSize: '9px',
                       fontWeight: 'bold',
-                      color: 'oklch(1 0 0 / 0.3)',
+                      color: isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)',
                       textTransform: 'uppercase'
                     }}
                   >
@@ -386,7 +414,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
                       }}
                     >
                       <div
-                        style={{ fontSize: '10px', fontWeight: '700', color: 'oklch(1 0 0 / 0.4)' }}
+                        style={{ fontSize: '10px', fontWeight: '700', color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)' }}
                       >
                         {Math.round((item.receivedBytes / 1024 / 1024) * 10) / 10} /{' '}
                         {item.totalBytes
@@ -431,33 +459,64 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
                       <Check size={12} strokeWidth={4} />
                       Selesai
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // @ts-ignore
-                        if (window.myMMA && window.myMMA.showInFolder && item.filePath) {
-                          // @ts-ignore
-                          window.myMMA.showInFolder(item.filePath)
-                        }
-                      }}
-                      title="Tampilkan di Folder"
+                    <div
                       style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'oklch(1 0 0 / 0.4)',
-                        cursor: 'pointer',
-                        padding: '4px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '4px',
-                        transition: 'all 0.2s'
+                        gap: '4px'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = 'white')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = 'oklch(1 0 0 / 0.4)')}
                     >
-                      <FolderOpen size={16} />
-                    </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // @ts-ignore
+                          if (window.myMMA && window.myMMA.showInFolder && item.filePath) {
+                            // @ts-ignore
+                            window.myMMA.showInFolder(item.filePath)
+                          }
+                        }}
+                        title="Tampilkan di Folder"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = isLight ? 'black' : 'white')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)')}
+                      >
+                        <FolderOpen size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeletingItem(item)
+                        }}
+                        title="Hapus Unduhan"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: '4px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = 'oklch(0.65 0.18 30)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)')}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -481,65 +540,134 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
           ))
         )}
       </div>
-
-      {/* Toggle Handle (appears only when panel is hidden but downloads exist) */}
-      {!isVisible && (
+      
+      {/* Deletion Confirmation Modal */}
+      {deletingItem && (
         <div
-          onClick={() => setInternalShow(true)}
           style={{
             position: 'absolute',
-            top: '-50px',
-            right: '0',
-            height: '42px',
-            padding: '0 20px',
-            backgroundColor: 'oklch(0.18 0 0 / 0.9)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid oklch(1 0 0 / 0.1)',
-            borderBottom: 'none',
-            borderRadius: '16px 16px 0 0',
-            color: 'white',
-            fontSize: '11px',
-            fontWeight: '800',
-            cursor: 'pointer',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 100,
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            boxShadow: '0 -10px 30px oklch(0 0 0 / 0.3)',
-            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+            justifyContent: 'center',
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease-out'
           }}
+          onClick={() => setDeletingItem(null)}
         >
-          <div style={{ position: 'relative' }}>
-            <DownloadIcon
-              size={16}
-              strokeWidth={2.5}
-              style={{
-                animation: Object.values(downloads).some((d) => d.status === 'downloading')
-                  ? 'bounce 1s infinite'
-                  : 'none'
-              }}
-            />
-            {Object.values(downloads).filter((d) => d.status === 'downloading').length > 0 && (
+          <div
+            style={{
+              backgroundColor: isLight ? 'white' : 'oklch(0.25 0 0)',
+              borderRadius: '24px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '320px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+              border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ textAlign: 'center' }}>
               <div
                 style={{
-                  position: 'absolute',
-                  top: '-6px',
-                  right: '-6px',
-                  width: '14px',
-                  height: '14px',
-                  borderRadius: '50%',
-                  backgroundColor: 'oklch(0.588 0.158 241.97)',
-                  fontSize: '8px',
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '16px',
+                  backgroundColor: 'oklch(0.65 0.18 30 / 0.1)',
+                  color: 'oklch(0.65 0.18 30)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 8px oklch(0.588 0.158 241.97 / 0.5)'
+                  margin: '0 auto 16px'
                 }}
               >
-                {Object.values(downloads).filter((d) => d.status === 'downloading').length}
+                <Trash2 size={24} />
               </div>
-            )}
+              <h3
+                style={{
+                  color: isLight ? 'black' : 'white',
+                  fontSize: '16px',
+                  fontWeight: '800',
+                  margin: '0 0 8px 0'
+                }}
+              >
+                Hapus Unduhan?
+              </h3>
+              <p
+                style={{
+                  color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)',
+                  fontSize: '12px',
+                  lineHeight: '1.5',
+                  margin: 0
+                }}
+              >
+                Pilih apakah Anda ingin menghapus riwayat saja atau berserta filenya.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+              <button
+                onClick={() => removeHistoryItem(deletingItem.id, false)}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                  color: isLight ? 'black' : 'white',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)')}
+              >
+                Hapus Riwayat Saja
+              </button>
+              <button
+                onClick={() => removeHistoryItem(deletingItem.id, true)}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: 'oklch(0.65 0.18 30)',
+                  color: 'white',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px oklch(0.65 0.18 30 / 0.3)'
+                }}
+              >
+                Hapus File & Riwayat
+              </button>
+              <button
+                onClick={() => setDeletingItem(null)}
+                style={{
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: 'none',
+                  color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.4)',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+            </div>
           </div>
-          <span>UNDUHAN</span>
         </div>
       )}
 
@@ -558,7 +686,7 @@ const DownloadManager: React.FC<DownloadManagerProps> = ({ show, onClose }) => {
             `
         }}
       />
-    </div>
+    </div >
   )
 }
 

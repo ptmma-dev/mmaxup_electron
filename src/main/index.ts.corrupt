@@ -23,32 +23,17 @@ import { EmailManager } from './services/EmailManager'
 const emailManagerGlobal = new EmailManager('', '')
 
 // Determine absolute icon path for robustness (especially for Linux taskbar)
-const getIconPath = (): string => {
-  if (is.dev) return iconAsset
-
-  // In production, try to find the unpacked version for Linux tray compatibility
-  const unpackedPath = iconAsset.replace('app.asar', 'app.asar.unpacked')
-  if (existsSync(unpackedPath)) return unpackedPath
-
-  // Fallback to resources directory if 'assets' logic was failing
-  const resourcesPath = join(process.resourcesPath, 'resources', require('path').basename(iconAsset))
-  if (existsSync(resourcesPath)) return resourcesPath
-
-  return iconAsset
-}
-
-const iconPath = getIconPath()
+const iconPath = join(__dirname, '../../assets/icons/icon.png')
 const icon = nativeImage.createFromPath(iconPath)
 
 // Detailed logging for icon loading
-logInfo(`Icon asset import path: ${iconAsset}`)
-logInfo(`Icon absolute path: ${iconPath}`)
-logInfo(`Icon file exists: ${existsSync(iconPath)}`)
-logInfo(`NativeImage created. Empty? ${icon.isEmpty()}`)
-
+logInfo(`Icon asset import path: ${iconAsset} `)
+logInfo(`Icon absolute path: ${iconPath} `)
+logInfo(`Icon file exists: ${existsSync(iconPath)} `)
+logInfo(`NativeImage created.Empty ? ${icon.isEmpty()} `)
 if (!icon.isEmpty()) {
   const size = icon.getSize()
-  logInfo(`Icon dimensions: ${size.width}x${size.height}`)
+  logInfo(`Icon dimensions: ${size.width}x${size.height} `)
 } else {
   logError('Application icon is EMPTY. Taskbar/Window icon may not appear.')
 }
@@ -64,10 +49,6 @@ if (process.platform === 'linux') {
   // Helps Wayland compositors find the .desktop file
   // Using the base name (slug) is often more reliable than the full desktop filename.
   ; (app as any).setDesktopName('mymma-app')
-  app.name = 'mymma-app'
-
-  // Support Wayland natively if available
-  app.commandLine.appendSwitch('ozone-platform-hint', 'auto')
 }
 
 const gotTheLock = app.requestSingleInstanceLock()
@@ -105,148 +86,57 @@ if (process.defaultApp) {
 }
 
 let tray: Tray | null = null
-let isCreatingTray = false
-let initialHideApplied = false
-
-function setupAutostart(enabled: boolean, startOnTray: boolean): void {
-  let exePath = process.env.APPIMAGE || app.getPath('exe')
-  const args = startOnTray ? ['--start-minimized'] : []
-
-  if (process.platform === 'linux') {
-    // Robust AppImage path detection
-    // If exePath is in /tmp, it's a mount point. We need the original AppImage path.
-    if (exePath.startsWith('/tmp') && !process.env.APPIMAGE) {
-      // Try to find if we were launched via ARGV0 (common for AppImages)
-      if (process.env.ARGV0 && !process.env.ARGV0.startsWith('/tmp')) {
-        exePath = process.env.ARGV0
+595:
+596: function setupAutostart(enabled: boolean, startOnTray: boolean): void {
+  597: const exePath = app.getPath('exe')
+  598: const args = startOnTray ? ['--start-minimized'] : []
+  599:
+  600: if (process.platform === 'linux') {
+    601: const autostartDir = join(homedir(), '.config', 'autostart')
+    602: const desktopFilePath = join(autostartDir, 'mymma-app.desktop')
+    603:
+    604: if (enabled) {
+      605: if (!existsSync(autostartDir)) {
+        606: mkdirSync(autostartDir, { recursive: true })
+        607:
       }
-    }
-
-    // Add Wayland support hint to autostart entry
-    args.push('--ozone-platform-hint=auto')
-    const autostartDir = join(homedir(), '.config', 'autostart')
-    const desktopFileName = is.dev ? 'mymma-app-dev.desktop' : 'mymma-app.desktop'
-    const desktopFilePath = join(autostartDir, desktopFileName)
-
-    if (enabled) {
-      if (!existsSync(autostartDir)) {
-        mkdirSync(autostartDir, { recursive: true })
-      }
-
-      // Build executable command
-      let execCommand = `"${exePath}"`
-      if (is.dev) {
-        execCommand += ` "${app.getAppPath()}"`
-      }
-      if (args.length > 0) {
-        execCommand += ` ${args.join(' ')}`
-      }
-
-      const appName = is.dev ? 'MyMMA App (Dev)' : 'MyMMA App'
-      const desktopFileContent = `[Desktop Entry]\nType=Application\nVersion=1.0\nName=${appName}\nComment=Desktop App for MyMMA\nExec=${execCommand}\nIcon=mymma-app\nTerminal=false\nCategories=Utility;\n`
-      writeFileSync(desktopFilePath, desktopFileContent)
-      logInfo(`[Autostart] Created linux desktop file at ${desktopFilePath} with command: ${execCommand}`)
+      608:
+      609: const desktopFileContent = `[Desktop Entry]
+610: Type=Application
+611: Version=1.0
+612: Name=MyMMA App
+613: Comment=Desktop App for MyMMA
+614: Exec="${exePath}" ${args.join(' ')}
+615: Icon=mymma-app
+616: Terminal=false
+617: Categories=Utility;
+618: `
+      619: writeFileSync(desktopFilePath, desktopFileContent)
+      620: logInfo(`[Autostart] Created linux desktop file at ${desktopFilePath}`)
+      621:
     } else {
-      if (existsSync(desktopFilePath)) {
-        unlinkSync(desktopFilePath)
-        logInfo(`[Autostart] Removed linux desktop file at ${desktopFilePath}`)
+      622: if (existsSync(desktopFilePath)) {
+        623: unlinkSync(desktopFilePath)
+        624: logInfo(`[Autostart] Removed linux desktop file at ${desktopFilePath}`)
+        625:
       }
+      626:
     }
+    627:
   } else {
-    // Windows / macOS
-    logInfo(
-      `[Autostart] Setting login item: enabled=${enabled}, path=${exePath}, args=${args.join(' ')}`
-    )
-    app.setLoginItemSettings({
-      openAtLogin: enabled,
-      openAsHidden: startOnTray, // macOS
-      path: exePath,
-      args
-    })
+    628:     // Windows / macOS
+    629: logInfo(`[Autostart] Setting login item: enabled=${enabled}, path=${exePath}, args=${args.join(' ')}`)
+    630: app.setLoginItemSettings({
+      631: openAtLogin: enabled,
+      632: openAsHidden: startOnTray, // macOS
+      633: path: exePath,
+      634: args
+635:     })
+    636:
   }
+  637:
 }
-
-// Desktop Settings Management
-const settingsPath = join(app.getPath('userData'), 'settings.json')
-const downloadDir = join(homedir(), 'MyMMA Downloads')
-const downloadsHistoryPath = join(app.getPath('userData'), 'downloads.json')
-
-let currentDesktopSettings: any = {
-  fakeGps: false,
-  lat: -6.1751,
-  lng: 106.8650
-}
-
-// Download History Management Helpers
-const getDownloadHistory = (includeMissing = false) => {
-  if (!existsSync(downloadsHistoryPath)) return []
-  try {
-    const history = JSON.parse(readFileSync(downloadsHistoryPath, 'utf8'))
-    if (includeMissing) return history
-    // Only return files that still exist on disk
-    return history.filter((item: any) => item.filePath && existsSync(item.filePath))
-  } catch (err) {
-    console.error('[DownloadsHistory] Error reading history:', err)
-    return []
-  }
-}
-
-const saveDownloadHistory = (history: any[]) => {
-  try {
-    // Keep only unique items and limit count if needed (e.g., last 100)
-    const uniqueHistory = Array.from(new Map(history.map((item: any) => [item.id, item])).values())
-      .sort((a: any, b: any) => (b.id as string).localeCompare(a.id))
-      .slice(0, 100)
-    writeFileSync(downloadsHistoryPath, JSON.stringify(uniqueHistory, null, 2))
-  } catch (err) {
-    console.error('[DownloadsHistory] Error saving history:', err)
-  }
-}
-
-// Load initial settings
-if (existsSync(settingsPath)) {
-  try {
-    currentDesktopSettings = JSON.parse(readFileSync(settingsPath, 'utf8'))
-  } catch (e) {
-    console.error('Failed to load initial settings', e)
-  }
-}
-
-const applyGeolocationToWebContents = async (contents: any, settings: any) => {
-  if (contents.isDestroyed()) return
-
-  try {
-    if (settings.fakeGps && settings.lat !== undefined && settings.lng !== undefined) {
-      if (!contents.debugger.isAttached()) {
-        contents.debugger.attach('1.3')
-      }
-
-      logInfo(`[Geolocation] Overriding GPS for contents: ${settings.lat}, ${settings.lng}`)
-      await contents.debugger.sendCommand('Emulation.setGeolocationOverride', {
-        latitude: parseFloat(settings.lat),
-        longitude: parseFloat(settings.lng),
-        accuracy: 100
-      })
-    } else {
-      if (contents.debugger.isAttached()) {
-        logInfo('[Geolocation] Clearing GPS override')
-        await contents.debugger.sendCommand('Emulation.clearGeolocationOverride')
-      }
-    }
-  } catch (err) {
-    console.error('[Geolocation] Failed to apply CDP override:', err)
-  }
-}
-
-const applyGeolocation = (settings: any) => {
-  currentDesktopSettings = settings
-  const allContents = require('electron').webContents.getAllWebContents()
-
-  logInfo(`[Geolocation] Applying settings to ${allContents.length} webContents`)
-  allContents.forEach(contents => {
-    applyGeolocationToWebContents(contents, settings)
-  })
-}
+638:
 
 function createWindow(): void {
   // Create the browser window.
@@ -267,56 +157,25 @@ function createWindow(): void {
     }
   })
 
-  // Initial window visibility logic
-  mainWindow.once('ready-to-show', async () => {
+  mainWindow.on('ready-to-show', async () => {
     // Load settings
     const settingsPath = join(app.getPath('userData'), 'settings.json')
-    let startOnTray = true // Default to true for consistent experience
+    let startOnTray = false
     if (existsSync(settingsPath)) {
       try {
         const settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
-        if (settings.startOnTray !== undefined) {
-          startOnTray = !!settings.startOnTray
-        }
+        startOnTray = !!settings.startOnTray
       } catch (e) {
         console.error('Failed to read settings on startup', e)
       }
     }
 
-    // In dev mode always show the window to keep dev server alive
-    if (is.dev) {
-      logInfo('[Main] Showing window in dev mode')
-      mainWindow.show()
-      return
-    }
-
     // Check if launched via autostart/minimized arg
-    const isMinimizedArg =
-      process.argv.includes('--start-minimized') || process.argv.includes('--hidden')
+    const isMinimizedArg = process.argv.includes('--start-minimized') || process.argv.includes('--hidden')
 
     if (startOnTray || isMinimizedArg) {
-      logInfo('[Main] Starting hidden in tray (cold start)')
-      mainWindow.hide()
+      console.log('[Main] Starting hidden in tray')
     } else {
-      logInfo('[Main] Showing window (cold start)')
-      mainWindow.show()
-    }
-  })
-
-  // Fallback for BOTH dev and prod: if window doesn't show or hide (i.e. app indicator hang), force it
-  setTimeout(() => {
-    if (!mainWindow.isDestroyed()) {
-      if (!mainWindow.isVisible() && !initialHideApplied) {
-        logInfo('[Main] Runtime timeout: Force showing window after startup delay')
-        mainWindow.show()
-      }
-    }
-  }, is.dev ? 2000 : 12000) // Slightly longer timeout for production to allow cold start
-
-  // Ensure window shows on subsequent reloads if it was already visible
-  mainWindow.on('ready-to-show', () => {
-    // Only auto-show on re-fires if it wasn't the first time handled by .once()
-    if (mainWindow.isVisible()) {
       mainWindow.show()
     }
   })
@@ -479,17 +338,6 @@ function createWindow(): void {
       try {
         const emailManager = new EmailManager(backendUrl, apiToken)
         const result = await emailManager.extractAndSaveAttachment(emlSource, filename)
-        if (result.success && result.filePath) {
-          const history = getDownloadHistory()
-          history.push({
-            id: Date.now().toString(),
-            fileName: filename,
-            date: new Date().toLocaleString(),
-            status: 'completed',
-            filePath: result.filePath
-          })
-          saveDownloadHistory(history)
-        }
         return result
       } catch (err: any) {
         console.error('[EmailAttachment] Error downloading attachment:', err)
@@ -497,73 +345,6 @@ function createWindow(): void {
       }
     }
   )
-
-  // Email Export IPC
-  ipcMain.handle('email:export', async (_event, { backendUrl, apiToken, emlSource, filename }) => {
-    try {
-      const emailManager = new EmailManager(backendUrl, apiToken)
-      const result = await emailManager.exportEmailAsEml(emlSource, filename)
-      if (result.success && result.filePath) {
-        const history = getDownloadHistory()
-        history.push({
-          id: Date.now().toString(),
-          fileName: result.filePath.split(/[\\/]/).pop() || filename,
-          date: new Date().toLocaleString(),
-          status: 'completed',
-          filePath: result.filePath
-        })
-        saveDownloadHistory(history)
-      }
-      return result
-    } catch (err: any) {
-      console.error('[EmailExport] Error exporting email:', err)
-      return { success: false, error: err.message || err }
-    }
-  })
-
-  ipcMain.handle('email:export-bulk', async (_event, { backendUrl, apiToken, emails, folderName }) => {
-    try {
-      const emailManager = new EmailManager(backendUrl, apiToken)
-      const result = await emailManager.exportBulkEmails(emails, folderName)
-      if (result.success && result.folderPath) {
-        const history = getDownloadHistory()
-        history.push({
-          id: Date.now().toString(),
-          fileName: `Folder: ${folderName} Export`,
-          date: new Date().toLocaleString(),
-          status: 'completed',
-          filePath: result.folderPath
-        })
-        saveDownloadHistory(history)
-      }
-      return result
-    } catch (err: any) {
-      console.error('[EmailExportBulk] Error bulk exporting emails:', err)
-      return { success: false, error: err.message || err }
-    }
-  })
-
-  ipcMain.handle('email:export-mbox', async (_event, { backendUrl, apiToken, emails, folderName }) => {
-    try {
-      const emailManager = new EmailManager(backendUrl, apiToken)
-      const result = await emailManager.exportToMbox(emails, folderName)
-      if (result.success && result.filePath) {
-        const history = getDownloadHistory()
-        history.push({
-          id: Date.now().toString(),
-          fileName: result.filePath.split(/[\\/]/).pop() || `${folderName}.mbox`,
-          date: new Date().toLocaleString(),
-          status: 'completed',
-          filePath: result.filePath
-        })
-        saveDownloadHistory(history)
-      }
-      return result
-    } catch (err: any) {
-      console.error('[EmailExportMbox] Error exporting emails to MBOX:', err)
-      return { success: false, error: err.message || err }
-    }
-  })
 
   // Email Real-time Watch IPC
   ipcMain.handle('email:start-watch', async (_event, { backendUrl, apiToken }) => {
@@ -695,7 +476,44 @@ function createWindow(): void {
     }
   })
 
-  // Removed duplicate settings logic - moved to top level
+  // Desktop Settings IPC
+  const settingsPath = join(app.getPath('userData'), 'settings.json')
+
+  ipcMain.handle('desktop:get-settings', async () => {
+    if (!existsSync(settingsPath)) {
+      return {
+        startOnBackground: false,
+        startOnTray: true // Default to true as per current behavior
+      }
+    }
+    try {
+      return JSON.parse(readFileSync(settingsPath, 'utf8'))
+    } catch (err) {
+      console.error('[Settings] Error reading settings:', err)
+      return { startOnBackground: false, startOnTray: true }
+    }
+  })
+
+  ipcMain.handle('desktop:set-settings', async (_event, newSettings) => {
+    try {
+      const currentSettings = existsSync(settingsPath)
+        ? JSON.parse(readFileSync(settingsPath, 'utf8'))
+        : { startOnBackground: false, startOnTray: true }
+
+      const updatedSettings = { ...currentSettings, ...newSettings }
+      writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2))
+
+      // Apply auto-start setting
+      if (updatedSettings.startOnBackground !== undefined) {
+        setupAutostart(updatedSettings.startOnBackground, !!updatedSettings.startOnTray)
+      }
+
+      return { success: true }
+    } catch (err) {
+      console.error('[Settings] Error saving settings:', err)
+      return { success: false, error: (err as Error).message }
+    }
+  })
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
@@ -719,24 +537,20 @@ function createWindow(): void {
     }
   })
 
-  const shouldHideToTray = (): boolean => {
+  ipcMain.on('window-close', async () => {
+    // Check settings for startOnTray
     const settingsPath = join(app.getPath('userData'), 'settings.json')
+    let startOnTray = true // Default to true
     if (existsSync(settingsPath)) {
       try {
         const settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
-        if (settings.startOnTray !== undefined) {
-          return !!settings.startOnTray
-        }
+        if (settings.startOnTray !== undefined) startOnTray = !!settings.startOnTray
       } catch (e) {
         /* ignore */
       }
     }
-    return true // Default to true
-  }
 
-  ipcMain.on('window-close', () => {
-    if (shouldHideToTray()) {
-      initialHideApplied = true
+    if (startOnTray) {
       mainWindow.hide()
     } else {
       mainWindow.close()
@@ -746,9 +560,20 @@ function createWindow(): void {
   mainWindow.on('close', (event) => {
     // Check if app is quitting (Cmd+Q, Quit from menu, etc.)
     if (!(app as any).isQuitting) {
-      if (shouldHideToTray()) {
+      // Check settings for startOnTray
+      const settingsPath = join(app.getPath('userData'), 'settings.json')
+      let startOnTray = true // Default to true
+      if (existsSync(settingsPath)) {
+        try {
+          const settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
+          if (settings.startOnTray !== undefined) startOnTray = !!settings.startOnTray
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      if (startOnTray) {
         event.preventDefault()
-        initialHideApplied = true
         mainWindow.hide()
       }
     }
@@ -812,98 +637,49 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  if (isCreatingTray) {
-    logInfo('[Tray] Tray creation already in progress, skipping...')
-    return
-  }
+  // Create tray icon
+  tray = new Tray(icon)
 
-  try {
-    isCreatingTray = true
-    logInfo('[Tray] Creating system tray...')
+  // Set tooltip
+  tray.setToolTip('MyMMA App')
 
-    // On Linux, tray creation can hang if the AppIndicator daemon is unresponsive.
-    const runTrayInit = () => {
-      try {
-        // Essential: Destroy previous tray to avoid zombies/leaks/hangs
-        if (tray && !tray.isDestroyed()) {
-          logInfo('[Tray] Destroying existing tray object...')
-          tray.destroy()
-          tray = null
-        }
-
-        // On Linux, string paths are often required for AppIndicator/StatusNotifier,
-        // but it MUST be a real file on disk (not inside ASAR).
-        // Try path first, then fallback to nativeImage object.
-        let trayAsset: any = iconPath
-        if (process.platform === 'linux' && (iconPath.includes('app.asar') || !existsSync(iconPath))) {
-          logInfo('[Tray] Icon path is inside ASAR or missing, using NativeImage fallback')
-          trayAsset = icon
-        } else if (process.platform !== 'linux') {
-          trayAsset = icon
-        }
-
-        const newTray = new Tray(trayAsset)
-
-        // Set tooltip
-        newTray.setToolTip('MyMMA App')
-
-        // Click tray icon to show/hide window
-        newTray.on('click', () => {
-          const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
-          if (mainWindow) {
-            if (mainWindow.isVisible()) {
-              mainWindow.hide()
-            } else {
-              mainWindow.show()
-              mainWindow.focus()
-            }
-          }
-        })
-
-        // Context menu for tray
-        const contextMenu = Menu.buildFromTemplate([
-          {
-            label: 'Show MyMMA',
-            click: () => {
-              const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
-              if (mainWindow) {
-                mainWindow.show()
-                mainWindow.focus()
-              }
-            }
-          },
-          {
-            type: 'separator'
-          },
-          {
-            label: 'Quit',
-            click: () => {
-              ; (app as any).isQuitting = true
-              app.quit()
-            }
-          }
-        ])
-
-        newTray.setContextMenu(contextMenu)
-        tray = newTray // Assign to global reference AFTER successful setup
-        logInfo('[Tray] System tray created successfully.')
-      } catch (e) {
-        logError(`[Tray] runTrayInit failure: ${e}`)
-      } finally {
-        isCreatingTray = false
+  // Click tray icon to show/hide window
+  tray.on('click', () => {
+    const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+    if (mainWindow) {
+      if (mainWindow.isVisible()) {
+        mainWindow.hide()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
       }
     }
+  })
 
-    if (process.platform === 'linux') {
-      // Use a slight delay for Linux tray to ensure environment is ready
-      setTimeout(runTrayInit, 1000)
-    } else {
-      runTrayInit()
+  // Context menu for tray
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show MyMMA',
+      click: () => {
+        const mainWindow = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+        if (mainWindow) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      }
+    },
+    {
+      type: 'separator'
+    },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit()
+      }
     }
-  } catch (err) {
-    isCreatingTray = false
-    logError(`[Tray] Global tray catch: ${err}`)
-  }
+  ])
+
+  tray.setContextMenu(contextMenu)
 }
 
 // This method will be called when Electron has finished
@@ -919,8 +695,7 @@ app.whenReady().then(() => {
     if (
       url.includes('reytechz.my.id') ||
       url.includes('mmaxup.com') ||
-      permission === 'notifications' ||
-      permission === 'geolocation'
+      permission === 'notifications'
     ) {
       return callback(true)
     }
@@ -928,60 +703,10 @@ app.whenReady().then(() => {
   })
 
   // Create download directory
+  const downloadDir = join(homedir(), 'MyMMA Downloads')
   if (!existsSync(downloadDir)) {
     mkdirSync(downloadDir, { recursive: true })
   }
-
-  ipcMain.handle('downloads:get-history', async () => {
-    return getDownloadHistory()
-  })
-
-  ipcMain.handle('downloads:remove', async (_event, { id, deleteFile }) => {
-    const history = getDownloadHistory(true)
-    // Use string comparison to avoid type issues (id could be string or number)
-    const itemToDelete = history.find((item: any) => String(item.id) === String(id))
-
-    if (deleteFile && itemToDelete && itemToDelete.filePath && existsSync(itemToDelete.filePath)) {
-      try {
-        unlinkSync(itemToDelete.filePath)
-        logInfo(`[Downloads] Deleted physical file: ${itemToDelete.filePath}`)
-      } catch (err) {
-        logError(`[Downloads] Failed to delete file: ${err}`)
-      }
-    }
-
-    const updatedHistory = history.filter((item: any) => String(item.id) !== String(id))
-    saveDownloadHistory(updatedHistory)
-    return { success: true }
-  })
-
-  ipcMain.handle('desktop:get-settings', async () => {
-    return {
-      startOnBackground: false,
-      startOnTray: true,
-      ...currentDesktopSettings
-    }
-  })
-
-  ipcMain.handle('desktop:set-settings', async (_event, newSettings) => {
-    try {
-      const updatedSettings = { ...currentDesktopSettings, ...newSettings }
-      writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2))
-
-      // Apply auto-start setting
-      if (updatedSettings.startOnBackground !== undefined) {
-        setupAutostart(updatedSettings.startOnBackground, !!updatedSettings.startOnTray)
-      }
-
-      // Apply Geolocation
-      applyGeolocation(updatedSettings)
-
-      return { success: true }
-    } catch (err) {
-      console.error('[Settings] Error saving settings:', err)
-      return { success: false, error: (err as Error).message }
-    }
-  })
 
   session.defaultSession.on('will-download', (_event, item) => {
     const fileName = item.getFilename()
@@ -1015,18 +740,6 @@ app.whenReady().then(() => {
       if (mainWindow) {
         if (state === 'completed') {
           mainWindow.webContents.send('download-completed', { id: downloadId, filePath })
-          // Add to history
-          const history = getDownloadHistory()
-          history.push({
-            id: downloadId,
-            fileName,
-            date,
-            receivedBytes: item.getTotalBytes(),
-            totalBytes: item.getTotalBytes(),
-            status: 'completed',
-            filePath
-          })
-          saveDownloadHistory(history)
         } else {
           mainWindow.webContents.send('download-failed', { id: downloadId, reason: state })
         }
@@ -1044,41 +757,11 @@ app.whenReady().then(() => {
   createTray()
   checkForUpdates()
 
-  // On Linux (especially Wayland/Hyprland), the system tray icon can disappear
-  // due to StatusNotifier daemon restarts or other desktop environment events.
-  // Periodically check if tray is still alive and recreate it if needed.
-  if (process.platform === 'linux') {
-    setInterval(() => {
-      if (!(app as any).isQuitting && (!tray || tray.isDestroyed())) {
-        logInfo('[Tray] Tray icon not found, recreating...')
-        createTray()
-      }
-    }, 5000)
-  }
-
-  // Ensure autostart path is correct (crucial after AppImage updates)
-  try {
-    const settingsPath = join(app.getPath('userData'), 'settings.json')
-    if (existsSync(settingsPath)) {
-      const settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
-      if (settings.startOnBackground !== undefined) {
-        setupAutostart(settings.startOnBackground, !!settings.startOnTray)
-      }
-      // Apply Geolocation on startup
-      applyGeolocation(settings)
-    }
-  } catch (err) {
-    console.error('[Autostart Setup] Error checking settings on startup:', err)
-  }
-
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
   app.on('web-contents-created', (_, contents) => {
-    // Apply geolocation override to any newly created contents (including webviews)
-    applyGeolocationToWebContents(contents, currentDesktopSettings)
-
     contents.on('will-attach-webview', (_, webPreferences) => {
       const pPath = join(__dirname, '../preload/index.js')
       webPreferences.contextIsolation = false
@@ -1107,11 +790,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  // In dev mode, quit properly so stale processes don't block the next dev session.
-  // In production, app stays alive in the system tray.
-  if (is.dev) {
-    app.quit()
-  }
+  // Don't quit - app stays in tray
 })
 
 app.on('before-quit', async () => {
@@ -1120,16 +799,7 @@ app.on('before-quit', async () => {
 })
 
 function checkForUpdates(): void {
-  // Auto-update only works in packaged production builds.
-  // In dev mode, electron-updater throws unhandled errors which can destabilize the process.
-  if (is.dev) {
-    logInfo('[Updater] Skipping auto-update check in dev mode.')
-    return
-  }
-
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-    logError(`[Updater] Failed to check for updates: ${err?.message || err}`)
-  })
+  autoUpdater.checkForUpdatesAndNotify()
 
   autoUpdater.on('update-downloaded', (info) => {
     const notification = new Notification({

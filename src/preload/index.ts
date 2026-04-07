@@ -92,13 +92,13 @@ if (typeof window !== 'undefined') {
     ipcRenderer.sendToHost('show-notification', { title, options })
 
     return {
-      close: () => {},
+      close: () => { },
       onclick: null,
       onclose: null,
       onerror: null,
       onshow: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
+      addEventListener: () => { },
+      removeEventListener: () => { },
       dispatchEvent: () => true
     }
   }
@@ -390,7 +390,12 @@ const myMMABridge = {
     console.log(`[MyMMA Bridge] showNotification: ${title}`)
     // @ts-ignore
     const { ipcRenderer } = electronAPI
-    ipcRenderer.sendToHost('show-notification', { title, options })
+    // If we're in a webview, send to host. If we're in the host, send to main.
+    if (window.opener || window.parent !== window || (window as any).isWebView) {
+      ipcRenderer.sendToHost('show-notification', { title, options })
+    } else {
+      ipcRenderer.send('trigger-native-notification', { title, options })
+    }
   },
   onDownloadStarted: (callback: (data: any) => void) => {
     // @ts-ignore
@@ -412,6 +417,16 @@ const myMMABridge = {
     const { ipcRenderer } = electronAPI
     ipcRenderer.on('download-failed', (_event, value) => callback(value))
   },
+  getDownloadHistory: () => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('downloads:get-history')
+  },
+  removeDownloadHistory: (id: string, deleteFile?: boolean) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('downloads:remove', { id, deleteFile })
+  },
   saveCredentials: (domain: string, username: string, password: string) => {
     // @ts-ignore
     const { ipcRenderer } = electronAPI
@@ -431,6 +446,127 @@ const myMMABridge = {
     // @ts-ignore
     const { ipcRenderer } = electronAPI
     return ipcRenderer.invoke('shell:show-in-folder', { path })
+  },
+  syncEmails: (backendUrl: string, apiToken: string) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:sync', { backendUrl, apiToken })
+  },
+  updateEmailFlags: (
+    accountId: number,
+    folder: string,
+    uid: number,
+    flags: string[],
+    action: string
+  ) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:update-flags', { accountId, folder, uid, flags, action })
+  },
+  moveEmail: (accountId: number, sourceFolder: string, uid: number, targetFolder: string) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:move', { accountId, sourceFolder, uid, targetFolder })
+  },
+  saveDraft: (accountId: number, data: any) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:save-draft', { accountId, data })
+  },
+  deleteEmail: (accountId: number, folder: string, uid: number) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:delete', { accountId, folder, uid })
+  },
+  sendEmail: (
+    backendUrl: string,
+    apiToken: string,
+    accountId: number,
+    data: { to: string; subject: string; body: string }
+  ) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:send', { backendUrl, apiToken, accountId, data })
+  },
+  downloadAttachment: (
+    backendUrl: string,
+    apiToken: string,
+    emlSource: string,
+    filename: string
+  ) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:download-attachment', {
+      backendUrl,
+      apiToken,
+      emlSource,
+      filename
+    })
+  },
+  exportEmail: (backendUrl: string, apiToken: string, emlSource: string, filename: string) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:export', {
+      backendUrl,
+      apiToken,
+      emlSource,
+      filename
+    })
+  },
+  exportBulkEmails: (
+    backendUrl: string,
+    apiToken: string,
+    emails: { emlSource: string; filename: string }[],
+    folderName: string
+  ) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:export-bulk', {
+      backendUrl,
+      apiToken,
+      emails,
+      folderName
+    })
+  },
+  exportToMbox: (
+    backendUrl: string,
+    apiToken: string,
+    emails: { emlSource: string; sender: string; sentAt: string }[],
+    folderName: string
+  ) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:export-mbox', {
+      backendUrl,
+      apiToken,
+      emails,
+      folderName
+    })
+  },
+  startEmailWatch: (backendUrl: string, apiToken: string) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:start-watch', { backendUrl, apiToken })
+  },
+  stopEmailWatch: () => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('email:stop-watch')
+  },
+  getDesktopSettings: () => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('desktop:get-settings')
+  },
+  setDesktopSettings: (settings: { startOnBackground?: boolean; startOnTray?: boolean }) => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    return ipcRenderer.invoke('desktop:set-settings', settings)
+  },
+  notifyProfileUpdated: () => {
+    // @ts-ignore
+    const { ipcRenderer } = electronAPI
+    ipcRenderer.sendToHost('profile-updated')
   },
   isDesktop: true
 }

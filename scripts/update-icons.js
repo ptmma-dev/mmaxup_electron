@@ -12,10 +12,10 @@ const SVG_SOURCE = path.join(RESOURCES_DIR, 'icon.svg')
 const run = async () => {
   console.log('Starting standard icon update process...')
 
-    // Ensure directories exist
-    ;[ASSETS_ICONS_DIR, PNG_DIR].forEach((dir) => {
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    })
+  // Ensure directories exist
+  ;[ASSETS_ICONS_DIR, PNG_DIR].forEach((dir) => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  })
 
   if (!fs.existsSync(SVG_SOURCE)) {
     console.error(`Error: Source SVG not found at ${SVG_SOURCE}`)

@@ -1,0 +1,54 @@
+# PROMPT 1: DEDICATED LOGIN (ANDROID/JETPACK COMPOSE)
+
+"Saya sedang membangun aplikasi Android untuk MyMMA menggunakan Jetpack Compose. Saya membutuhkan layar login yang memiliki tampilan premium persis dengan mmaxup_electron (gaya modern glassmorphism).
+
+DESAIN:
+- Bagian Atas (35% layar): Gunakan background Navy (#020617) dengan efek radial gradient. Tambahkan logo aplikasi dan teks 'Welcome Back!' dengan deskripsi 'Sign in to continue your workflow.'
+- Bagian Bawah: Gunakan Card putih dengan RoundedCorner atas sebesar 48dp yang menempel tinggi ke area Navy (efek tumpuk).
+- Input: Gunakan OutlineTextField dengan ikon (Email & Lock) dan toggle password visibility.
+- Tombol Login: Warna Navy, full width, dengan ikon login.
+
+LOGIC (KOTLIN):
+1. Gunakan ViewModel untuk mengelola state (email, password, loading, error).
+2. Integrasikan Retrofit untuk memanggil endpoint: POST `/api/auth/shell-login` dengan body JSON `{email, password}`.
+3. Keamanan: Simpan token yang didapat ke dalam 'EncryptedSharedPreferences' (Jetpack Security).
+4. Auto-Login: Jika token ditemukan saat aplikasi dibuka, langsung arahkan ke Dashboard."
+
+---
+
+# PROMPT 2: MESSENGER / CHAT SYSTEM (ANDROID REAL-TIME)
+
+"Saya ingin menambahkan fitur Messenger real-time ke aplikasi Android saya yang terhubung ke backend Laravel.
+
+LOGIC NETWORKING:
+1. API Endpoints:
+   - List Chat Rooms: GET `/api/chat-desktop/rooms`
+   - List Messages: GET `/api/chat-desktop/rooms/{id}/messages`
+   - Send Message: POST `/api/chat-desktop/rooms/{id}/messages` (Body: {message, message_type: 'text'})
+2. Real-time (Laravel Echo Interface):
+   - Gunakan pusher-java-client atau laravel-echo-android.
+   - Subscribe ke Private Channel: 'chat-room.{id}'.
+   - Berikan listener untuk event '.message.sent' (untuk update chat list instan) dan '.user.typing' (untuk indikator sedang mengetik).
+
+UI (JETPACK COMPOSE):
+1. Chat List: LazyColumn dengan bubble chat. Bubble pengirim warna Navy, bubble penerima warna Abu-abu.
+2. Typing Indicator: Tambahkan animasi titik-titik kecil di bawah header saat ada event typing.
+3. Navigation: Buat alur dari Daftar Percakapan masuk ke dalam Detail Percakapan."
+
+---
+
+# PROMPT 3: BACKEND API SETUP (LARAVEL/PHP)
+
+"Saya perlu menyiapkan API Backend untuk mendukung fitur Android di atas. Gunakan struktur Laravel 12.
+
+AUTENTIKASI:
+- Buat controller untuk `api/auth/shell-login` yang me-return Personal Access Token (Sanctum) dan data User. Pastikan return format JSON: { success: true, token: '...', user: {...} }.
+
+CHAT LOGIC (BROADCASTING):
+1. Buat ChatController yang melayani endpoint:
+   - `/api/chat-desktop/rooms`: Mengambil semua percakapan milik user yang sedang login.
+   - `/api/chat-desktop/rooms/{id}/messages`: Pagination pesan chat.
+2. Broadcasting Events:
+   - Buat Event `MessageSent` yang mengimplementasikan `ShouldBroadcast`. Broadcast ke PrivateChannel `chat-room.{id}`.
+   - Buat Event `UserTyping` untuk indikator mengetik.
+3. Pusher/Socket: Konfigurasikan `config/broadcasting.php` menggunakan Pusher atau Reverb agar bisa diakses oleh client Android."

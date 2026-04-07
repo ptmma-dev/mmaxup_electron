@@ -7,21 +7,24 @@ import { appendFileSync } from 'fs'
 const logFile = join(app.getPath('userData'), 'app.log')
 
 export const log = (message: string, level: 'INFO' | 'ERROR' = 'INFO') => {
-    const timestamp = new Date().toISOString()
-    const formattedMessage = `[${timestamp}] [${level}] ${message}\n`
+  const timestamp = new Date().toISOString()
+  const formattedMessage = `[${timestamp}] [${level}] ${message}\n`
 
-    // Always log to console for terminal visibility
+  // Always log to console for terminal visibility in development
+  // In production, console logs are dropped by esbuild configuration
+  if (!app.isPackaged) {
     if (level === 'ERROR') {
-        console.error(formattedMessage.trim())
+      console.error(formattedMessage.trim())
     } else {
-        console.log(formattedMessage.trim())
+      console.log(formattedMessage.trim())
     }
+  }
 
-    try {
-        appendFileSync(logFile, formattedMessage)
-    } catch (err) {
-        console.error('Failed to write to log file:', err)
-    }
+  try {
+    appendFileSync(logFile, formattedMessage)
+  } catch (err) {
+    console.error('Failed to write to log file:', err)
+  }
 }
 
 export const logInfo = (message: string) => log(message, 'INFO')
